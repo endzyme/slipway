@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package krbrnrtr;
+
+// option go_package = "github.com/endzyme/telephone/protobuf/krbrnrtr";
+
+service Krbrnrtr {
+    rpc GetGossipMembers (GossipMembersRequest) returns (GossipMembersResponse);
+    rpc RunAction (CommandRequest) returns (CommandResponse);
+}
+
+message GossipMembersRequest {
+    Tags tag_filter = 1;
+}
+
+message GossipMembersResponse {
+    repeated GossipMember result = 1;
+}
+
+message GossipMember {
+    string hostname = 1;
+    repeated string labels = 2;
+    string ip_address = 3;
+}
+
+message CommandRequest {
+    string action = 1;
+    repeated string arguments = 2;
+    Tags tag_filter = 3;
+}
+
+message Tags {
+    repeated string key = 1;
+    repeated string value = 2;
+}
+
+message CommandResponse {
+    string command_request_id = 1;
+    string receiver_node = 2; // node that received and processed the command request
+    enum CommandStatus {
+        ACCEPTED = 0;
+        NO_HOSTS_FOUND_WITH_FILTERS = 1;
+        DENIED = 2;
+        INTERNAL_ERROR = 3;
+    }
+    CommandStatus status = 3;
+    string status_message = 4; // message with more relevant information about the status
+    string log_location_reference = 9; // reference to where client can get more details on status of fired command
+}
