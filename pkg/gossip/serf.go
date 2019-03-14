@@ -48,12 +48,18 @@ func (s *SerfGossipServer) Initialize(eventChannel chan serf.Event) error {
 	config.Init()
 	config.EventCh = eventChannel
 	config.MemberlistConfig.BindPort, _ = strconv.Atoi(os.Args[1])
-	config.NodeName = randomHostname
+	config.NodeName = "XITADO"
 	config.TombstoneTimeout = 5 * time.Minute
 	config.Tags = map[string]string{
 		"Hostname": randomHostname,
+		// TODO add more metadata here like cloud availzone and ip or real hostname
+		// TODO Add metadata like kubernetes-master or kubernetes-node
 	}
 	config.ProtocolVersion = serf.ProtocolVersionMax
+
+	// NOTE This is required to accommodate nodes quicking due to connecting with the same name
+	// TODO Figure out if there is a better way to shuffle conflict resolution logic
+	config.EnableNameConflictResolution = false
 
 	// Setup the cluster with the config
 	cluster, err := serf.Create(config)
