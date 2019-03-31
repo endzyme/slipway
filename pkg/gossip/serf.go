@@ -3,8 +3,6 @@ package gossip
 import (
 	"fmt"
 	"math/rand"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/endzyme/telephone/protobuf/krbrnrtr"
@@ -12,10 +10,10 @@ import (
 )
 
 //BuildSerfServer returns a build and ready to run gossip server
-func BuildSerfServer(eventChannel chan serf.Event, joinAddrs []string) (Server, error) {
+func BuildSerfServer(eventChannel chan serf.Event, bindPort int, joinAddrs []string) (Server, error) {
 	var server SerfGossipServer
 	server.joinAddrs = joinAddrs
-	err := server.Initialize(eventChannel)
+	err := server.Initialize(bindPort, eventChannel)
 	return &server, err
 }
 
@@ -26,6 +24,12 @@ type SerfGossipServer struct {
 	joinAddrs []string
 }
 
+//SendEvent
+func (s SerfGossipServer) SendEvent(name string, payload []byte) error {
+	err := s.cluster.UserEvent(name, payload, true)
+	return err
+}
+
 //Stop leaves the cluster and shutsdown the gossip server
 func (s SerfGossipServer) Stop() {
 	// TODO Should this be checking for errors on these calls
@@ -34,7 +38,7 @@ func (s SerfGossipServer) Stop() {
 }
 
 //Initialize starts the cluster and sets the cluster and config options
-func (s *SerfGossipServer) Initialize(eventChannel chan serf.Event) error {
+func (s *SerfGossipServer) Initialize(bindPort int, eventChannel chan serf.Event) error {
 	randomHostname := func(n int) string {
 		bytes := make([]byte, n)
 		for i := 0; i < n; i++ {
@@ -47,8 +51,8 @@ func (s *SerfGossipServer) Initialize(eventChannel chan serf.Event) error {
 	config := serf.DefaultConfig()
 	config.Init()
 	config.EventCh = eventChannel
-	config.MemberlistConfig.BindPort, _ = strconv.Atoi(os.Args[1])
-	config.NodeName = "XITADO"
+	config.MemberlistConfig.BindPort = bindPort
+	config.NodeName = randomHostname
 	config.TombstoneTimeout = 5 * time.Minute
 	config.Tags = map[string]string{
 		"Hostname": randomHostname,
@@ -103,4 +107,12 @@ func (s SerfGossipServer) GetGossipMembers() []*krbrnrtr.GossipMember {
 		members = append(members, gossipMember)
 	}
 	return members
+}
+
+type Event struct {
+	serf.UserEvent
+}
+
+func (e Event) String() string {
+	return fmt.Sprintf("HOLY SHIET %v", e.Payload)
 }

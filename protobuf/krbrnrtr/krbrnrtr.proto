@@ -7,6 +7,7 @@ package krbrnrtr;
 service Krbrnrtr {
     rpc GetGossipMembers (GossipMembersRequest) returns (GossipMembersResponse);
     rpc RunAction (CommandRequest) returns (CommandResponse);
+    rpc RunActionSyncResult (CommandRequest) returns (stream CommandResponse);
 }
 
 message GossipMembersRequest {
@@ -44,6 +45,6 @@ message CommandResponse {
         INTERNAL_ERROR = 3;
     }
     CommandStatus status = 3;
-    string status_message = 4; // message with more relevant information about the status
+    bytes status_message = 4; // message with more relevant information about the status
     string log_location_reference = 9; // reference to where client can get more details on status of fired command
 }

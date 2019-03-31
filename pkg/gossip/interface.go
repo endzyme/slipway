@@ -7,8 +7,9 @@ import (
 
 //Server facilitates starting stopping and init of gossip server cluster
 type Server interface {
-	Initialize(eventChannel chan serf.Event) error
+	Initialize(bindPort int, eventChannel chan serf.Event) error
 	Stop()
 	GetEventChannel() chan<- serf.Event
 	GetGossipMembers() []*krbrnrtr.GossipMember
+	SendEvent(name string, payload []byte) error
 }
