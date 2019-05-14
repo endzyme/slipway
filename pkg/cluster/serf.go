@@ -1,33 +1,32 @@
-package gossip
+package cluster
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
-	"github.com/endzyme/telephone/protobuf/krbrnrtr"
 	"github.com/hashicorp/serf/serf"
 )
 
 //BuildSerfServer returns a build and ready to run gossip server
-func BuildSerfServer(eventChannel chan serf.Event, bindPort int, joinAddrs []string) (Server, error) {
-	var server SerfGossipServer
-	server.joinAddrs = joinAddrs
-	err := server.Initialize(bindPort, eventChannel)
+func StartSlipwayCluster(eventChannel chan serf.Event, bindPort int, joinAddrs []string, secretKey []byte) (SlipwayClusterServer, error) {
+	server := SerfGossipServer{
+		joinAddrs:    joinAddrs,
+		eventChannel: eventChannel,
+		bindPort:     bindPort,
+		secretKey:    secretKey,
+	}
+	err := server.Start()
 	return &server, err
 }
 
 //SerfGossipServer is the interface implementor for a GossipServer
 type SerfGossipServer struct {
-	config    *serf.Config
-	cluster   *serf.Serf
-	joinAddrs []string
-}
-
-//SendEvent
-func (s SerfGossipServer) SendEvent(name string, payload []byte) error {
-	err := s.cluster.UserEvent(name, payload, true)
-	return err
+	bindPort     int
+	eventChannel chan serf.Event
+	secretKey    []byte
+	config       *serf.Config
+	cluster      *serf.Serf
+	joinAddrs    []string
 }
 
 //Stop leaves the cluster and shutsdown the gossip server
@@ -37,8 +36,8 @@ func (s SerfGossipServer) Stop() {
 	s.cluster.Shutdown()
 }
 
-//Initialize starts the cluster and sets the cluster and config options
-func (s *SerfGossipServer) Initialize(bindPort int, eventChannel chan serf.Event) error {
+//Start starts the cluster and sets the cluster and config options
+func (s *SerfGossipServer) Start() error {
 	randomHostname := func(n int) string {
 		bytes := make([]byte, n)
 		for i := 0; i < n; i++ {
@@ -50,8 +49,9 @@ func (s *SerfGossipServer) Initialize(bindPort int, eventChannel chan serf.Event
 	// Initialize the config
 	config := serf.DefaultConfig()
 	config.Init()
-	config.EventCh = eventChannel
-	config.MemberlistConfig.BindPort = bindPort
+	config.MemberlistConfig.SecretKey = s.secretKey
+	config.EventCh = s.eventChannel
+	config.MemberlistConfig.BindPort = s.bindPort
 	config.NodeName = randomHostname
 	config.TombstoneTimeout = 5 * time.Minute
 	config.Tags = map[string]string{
@@ -83,36 +83,4 @@ func (s *SerfGossipServer) Initialize(bindPort int, eventChannel chan serf.Event
 	s.config = config
 
 	return nil
-}
-
-//GetEventChannel returns the channel which events can be received on (i think)
-func (s SerfGossipServer) GetEventChannel() chan<- serf.Event {
-	return s.config.EventCh
-}
-
-//GetGossipMembers gets all the members of gossip cluster in the protobuf format
-func (s SerfGossipServer) GetGossipMembers() []*krbrnrtr.GossipMember {
-	var members []*krbrnrtr.GossipMember
-	for _, serfMember := range s.cluster.Members() {
-		if serfMember.Status != serf.StatusAlive {
-			continue
-		}
-		gossipMember := &krbrnrtr.GossipMember{}
-		gossipMember.Hostname = serfMember.Name
-		gossipMember.IpAddress = serfMember.Addr.String()
-		for key, val := range serfMember.Tags {
-			gossipMember.Labels = append(gossipMember.Labels,
-				fmt.Sprintf("%v=%v", key, val))
-		}
-		members = append(members, gossipMember)
-	}
-	return members
-}
-
-type Event struct {
-	serf.UserEvent
-}
-
-func (e Event) String() string {
-	return fmt.Sprintf("HOLY SHIET %v", e.Payload)
 }

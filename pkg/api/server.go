@@ -1,95 +1,58 @@
 package api
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"net"
-	"os/exec"
-	"sync"
+	"os"
 	"time"
 
-	"github.com/go-cmd/cmd"
-
-	"github.com/endzyme/slipway/pkg/gossip"
-	"github.com/endzyme/slipway/protobuf/krbrnrtr"
+	"github.com/endzyme/slipway/pkg/cluster"
+	"github.com/endzyme/slipway/protobuf/slipway"
 	"google.golang.org/grpc"
 )
 
-type Server struct {
-	gossipServer gossip.Server
-	mutex        sync.Mutex
-}
-
-//GetGossipMembers gets the members of the gossip cluster
-func (s Server) GetGossipMembers(ctx context.Context, req *krbrnrtr.GossipMembersRequest) (resp *krbrnrtr.GossipMembersResponse, err error) {
-	eventStream := s.gossipServer.SendEvent("fudge", []byte("uhhhhhh"))
-	if err != nil {
-		println(eventStream.Error())
-	}
-
-	membersList := s.gossipServer.GetGossipMembers()
-	resp = &krbrnrtr.GossipMembersResponse{
-		Result: membersList,
-	}
-	return resp, nil
-}
-
-// RunAction runs the action
-func (s Server) RunAction(ctx context.Context, req *krbrnrtr.CommandRequest) (*krbrnrtr.CommandResponse, error) {
-	cmd := exec.Command(req.Action, req.Arguments...)
-	output, err := cmd.CombinedOutput()
-	resp := &krbrnrtr.CommandResponse{
-		CommandRequestId: "asdf",
-		ReceiverNode:     "uhhh wat",
-		Status:           krbrnrtr.CommandResponse_ACCEPTED,
-		StatusMessage:    output,
-	}
-	return resp, err
-}
-
 //RunActionSyncResult asdf
-func (s Server) RunActionSyncResult(req *krbrnrtr.CommandRequest, resultServer krbrnrtr.Krbrnrtr_RunActionSyncResultServer) error {
-	cmdOptions := cmd.Options{
-		Buffered:  false,
-		Streaming: true,
-	}
+// func (s Server) RunActionSyncResult(req *krbrnrtr.CommandRequest, resultServer krbrnrtr.Krbrnrtr_RunActionSyncResultServer) error {
+// 	cmdOptions := cmd.Options{
+// 		Buffered:  false,
+// 		Streaming: true,
+// 	}
 
-	action := cmd.NewCmdOptions(cmdOptions, req.Action, req.Arguments...)
-	receiver := "self"
+// 	action := cmd.NewCmdOptions(cmdOptions, req.Action, req.Arguments...)
+// 	receiver := "self"
 
-	go func() {
-		var msg krbrnrtr.CommandResponse
-		for {
-			select {
-			case line := <-action.Stdout:
-				msg.ReceiverNode = receiver
-				msg.StatusMessage = []byte(fmt.Sprintf("%s: %s", time.Now().String(), line))
-			case line := <-action.Stderr:
-				msg.ReceiverNode = receiver
-				msg.StatusMessage = []byte(line)
-			}
-			resultServer.Send(&msg)
-		}
-	}()
+// 	go func() {
+// 		var msg krbrnrtr.CommandResponse
+// 		for {
+// 			select {
+// 			case line := <-action.Stdout:
+// 				msg.ReceiverNode = receiver
+// 				msg.StatusMessage = []byte(fmt.Sprintf("%s: %s", time.Now().String(), line))
+// 			case line := <-action.Stderr:
+// 				msg.ReceiverNode = receiver
+// 				msg.StatusMessage = []byte(line)
+// 			}
+// 			resultServer.Send(&msg)
+// 		}
+// 	}()
 
-	<-action.Start()
+// 	<-action.Start()
 
-	for len(action.Stdout) > 0 || len(action.Stderr) > 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+// 	for len(action.Stdout) > 0 || len(action.Stderr) > 0 {
+// 		time.Sleep(10 * time.Millisecond)
+// 	}
 
-	log.Printf("Finished command %v", action.Name)
+// 	log.Printf("Finished command %v", action.Name)
 
-	if action.Status().Exit > 0 {
-		return fmt.Errorf("Error found executing thing. Exit Code: %d", action.Status().Exit)
-	}
+// 	if action.Status().Exit > 0 {
+// 		return fmt.Errorf("Error found executing thing. Exit Code: %d", action.Status().Exit)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-// Build returns the bind port and http server to listen
-func Build(bindAddress string, gossipServer gossip.Server) error {
+// ServeGRPC returns the bind port and http server to listen
+func ServeGRPC(bindAddress string, gossipServer cluster.SlipwayClusterServer, gracefulStop chan os.Signal) error {
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)
@@ -99,10 +62,19 @@ func Build(bindAddress string, gossipServer gossip.Server) error {
 		return err
 	}
 
-	server := Server{
-		gossipServer: gossipServer,
-	}
+	kubernetesClusterHandler := KubernetesService{}
+	kubernetesNodeHandler := KubernetesNodeHandler{}
+	clusterHandler := ClusterHandler{}
 
-	krbrnrtr.RegisterKrbrnrtrServer(grpcServer, server)
+	slipway.RegisterKubernetesClusterServer(grpcServer, kubernetesClusterHandler)
+	slipway.RegisterKubernetesNodeServer(grpcServer, kubernetesNodeHandler)
+	slipway.RegisterClusterServer(grpcServer, clusterHandler)
+	go func() {
+		sig := <-gracefulStop
+		fmt.Printf("caught sig: %+v\n", sig)
+		fmt.Println("Wait for 2 second to finish processing")
+		grpcServer.GracefulStop()
+		time.Sleep(2 * time.Second)
+	}()
 	return grpcServer.Serve(listener)
 }
