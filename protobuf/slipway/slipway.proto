@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package krbrnrtr;
+package slipway;
 
 // option go_package = "github.com/endzyme/telephone/protobuf/krbrnrtr";
 

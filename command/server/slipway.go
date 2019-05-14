@@ -12,8 +12,8 @@ import (
 	"github.com/braintree/manners"
 	"github.com/hashicorp/serf/serf"
 
-	"github.com/endzyme/telephone/pkg/api"
-	"github.com/endzyme/telephone/pkg/gossip"
+	"github.com/endzyme/slipway/pkg/api"
+	"github.com/endzyme/slipway/pkg/gossip"
 )
 
 func main() {

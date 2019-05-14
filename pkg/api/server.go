@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-cmd/cmd"
 
-	"github.com/endzyme/telephone/pkg/gossip"
-	"github.com/endzyme/telephone/protobuf/krbrnrtr"
+	"github.com/endzyme/slipway/pkg/gossip"
+	"github.com/endzyme/slipway/protobuf/krbrnrtr"
 	"google.golang.org/grpc"
 )
 

@@ -30,3 +30,27 @@
   * Nodes may need a state setting to allow or disallow certain cluster actions
   * Example: Don't allow bootstrap with kubeadm if cluster is already bootstrapped
 * Failed executions should be as idempotent as possible when transitioning states
+
+# Major Components
+1. Gossip Clustering
+2. API Server & Client CLI
+3. Kubeadm Command Wrappers (versioned)
+
+# Workflow for initialization
+1. Three servers come up and join each other
+
+# Requirements before Bootstrapping
+1. Has Kubernetes installed (kubelet, kubeadm, etc)
+2. Has Slipway Server Installed and Configured
+3.
+
+
+# Server Configuration
+- Gossip Discovery Listening address and port (default 0.0.0.0:6776/udp)
+- API Server Listening Address and Port (default 0.0.0.0:7070/tcp)
+- Certificates
+
+# CLI Features
+- Generate a config file for the Server
+- Download the server binary matching your version of the CLI
+- Generate (or provide docs on) a self-signed long-lived certificate for gossip mtls

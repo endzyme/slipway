@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/endzyme/telephone/protobuf/krbrnrtr"
+	"github.com/endzyme/slipway/protobuf/krbrnrtr"
 	"google.golang.org/grpc"
 )
 
