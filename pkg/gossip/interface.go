@@ -1,7 +1,7 @@
 package gossip
 
 import (
-	"github.com/endzyme/telephone/protobuf/krbrnrtr"
+	"github.com/endzyme/slipway/protobuf/krbrnrtr"
 	"github.com/hashicorp/serf/serf"
 )
 

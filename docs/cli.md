@@ -14,7 +14,7 @@ SubCommands:
     generate-configuration
         server
         client
-    gossip-cluster
+    cluster
         list --watch
         remove <node>
         get-logs-from
