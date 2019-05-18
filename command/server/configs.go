@@ -10,8 +10,10 @@ var (
 	gossipBindPort  = 7946
 	gossipSecret    = "30a4817deb1fce06fa1e3452445a9742"
 	apiBind         = "0.0.0.0:7070"
-	gossipJoinAddrs = []string{""}
+	gossipJoinAddrs = []string{}
 )
+
+// TODO add secret key and role type for tags
 
 func readConfigs() {
 	var err error

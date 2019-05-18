@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/endzyme/slipway/pkg/cluster"
 	"github.com/endzyme/slipway/protobuf/slipway"
@@ -52,7 +51,7 @@ import (
 // }
 
 // ServeGRPC returns the bind port and http server to listen
-func ServeGRPC(bindAddress string, gossipServer cluster.SlipwayClusterServer, gracefulStop chan os.Signal) error {
+func ServeGRPC(bindAddress string, slipwayCluster cluster.SlipwayCluster, gracefulStop chan os.Signal) error {
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)
@@ -64,17 +63,18 @@ func ServeGRPC(bindAddress string, gossipServer cluster.SlipwayClusterServer, gr
 
 	kubernetesClusterHandler := KubernetesService{}
 	kubernetesNodeHandler := KubernetesNodeHandler{}
-	clusterHandler := ClusterHandler{}
+	clusterHandler := ClusterHandler{slipwayCluster: slipwayCluster}
 
 	slipway.RegisterKubernetesClusterServer(grpcServer, kubernetesClusterHandler)
 	slipway.RegisterKubernetesNodeServer(grpcServer, kubernetesNodeHandler)
 	slipway.RegisterClusterServer(grpcServer, clusterHandler)
+
 	go func() {
 		sig := <-gracefulStop
 		fmt.Printf("caught sig: %+v\n", sig)
-		fmt.Println("Wait for 2 second to finish processing")
+		fmt.Println("Stopping API Server")
 		grpcServer.GracefulStop()
-		time.Sleep(2 * time.Second)
 	}()
+
 	return grpcServer.Serve(listener)
 }
