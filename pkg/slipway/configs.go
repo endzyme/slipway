@@ -21,7 +21,7 @@ var (
 
 // TODO add secret key and role type for tags
 
-func readConfigs() *SlipwayConfig {
+func ReadConfigs() *SlipwayConfig {
 	var err error
 	if len(os.Args) > 3 {
 		gossipJoinAddrs = []string{os.Args[3]}

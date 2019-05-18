@@ -19,11 +19,6 @@ func main() {
 	// signal.Notify(reloadChannel, syscall.SIGUSR1)
 	config := slipway.ReadConfigs()
 
-	// Note the configs
-	log.Printf("Web Port: %v\n", apiBind)
-	log.Printf("Gossip Port: %v\n", gossipBindPort)
-	log.Printf("Gossip Port: %v\n", gossipJoinAddrs)
-
 	// Start up a signal channel for graceful termination
 	var gracefulStop = make(chan os.Signal)
 	signal.Notify(gracefulStop, syscall.SIGTERM)
@@ -43,7 +38,7 @@ func main() {
 	// slipway.WatchNodeStatus()
 
 	// start the api server and await commands
-	if err = api.ServeGRPC(apiBind, slipwayCluster, gracefulStop); err != nil {
+	if err = api.ServeGRPC(config.APIBind, slipwayCluster, gracefulStop); err != nil {
 		log.Fatal(err)
 	}
 }

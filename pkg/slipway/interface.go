@@ -5,7 +5,7 @@ type SlipwayCluster interface {
 	Start() error
 	Stop()
 	Join(addr ...string) error
-	SendEvent(string) error
+	BroadcastEvent(string) error
 	AddTag(key, value string) error
 	RemoveTag(key string) error
 }

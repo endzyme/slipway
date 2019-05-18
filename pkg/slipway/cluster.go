@@ -13,8 +13,8 @@ import (
 )
 
 // StartSlipwayCluster returns a build and ready to run gossip server
-func StartSlipwayCluster(eventChannel chan serf.Event, config SlipwayConfig) (SlipwayCluster, error) {
-	server := SerfCluster{
+func StartSlipwayCluster(eventChannel chan serf.Event, config *SlipwayConfig) (SlipwayCluster, error) {
+	server := cluster{
 		eventChannel: eventChannel,
 		bindPort:     config.GossipBindPort,
 		secretKey:    config.GossipSecret,
@@ -31,8 +31,8 @@ func StartSlipwayCluster(eventChannel chan serf.Event, config SlipwayConfig) (Sl
 	return &server, err
 }
 
-//SerfCluster is the interface implementor for a GossipServer
-type SerfCluster struct {
+//cluster is the interface implementor for a GossipServer
+type cluster struct {
 	bindPort     int
 	eventChannel chan serf.Event
 	secretKey    []byte
@@ -44,16 +44,16 @@ type SerfCluster struct {
 }
 
 //Stop leaves the cluster and shutsdown the gossip server
-func (s *SerfCluster) Stop() {
-	s.Lock()
-	defer s.Unlock()
+func (c *cluster) Stop() {
+	c.Lock()
+	defer c.Unlock()
 	// TODO Should this be checking for errors on these calls
-	s.cluster.Leave()
-	s.cluster.Shutdown()
+	c.cluster.Leave()
+	c.cluster.Shutdown()
 }
 
 //Start starts the cluster and sets the cluster and config options
-func (s *SerfCluster) Start() error {
+func (c *cluster) Start() error {
 	randomHostname := func(n int) string {
 		bytes := make([]byte, n)
 		for i := 0; i < n; i++ {
@@ -66,9 +66,9 @@ func (s *SerfCluster) Start() error {
 	config := serf.DefaultConfig()
 	config.Init()
 	config.CoalescePeriod = time.Millisecond * 100
-	config.MemberlistConfig.SecretKey = s.secretKey
-	config.EventCh = s.eventChannel
-	config.MemberlistConfig.BindPort = s.bindPort
+	config.MemberlistConfig.SecretKey = c.secretKey
+	config.EventCh = c.eventChannel
+	config.MemberlistConfig.BindPort = c.bindPort
 	config.NodeName = randomHostname
 	config.TombstoneTimeout = 5 * time.Minute
 	config.Tags = map[string]string{
@@ -90,21 +90,21 @@ func (s *SerfCluster) Start() error {
 	}
 
 	// Set the cluster and config settings for the struct
-	s.cluster = cluster
-	s.config = config
+	c.cluster = cluster
+	c.config = config
 
 	return nil
 }
 
 // Join allows you to join cluster nodes with a list of addrs:ports
-func (s *SerfCluster) Join(addrs ...string) error {
+func (c *cluster) Join(addrs ...string) error {
 	if len(addrs) > 0 {
-		s.Lock()
-		defer s.Unlock()
+		c.Lock()
+		defer c.Unlock()
 
 		// attempt to join any specified joinAddrs
 		log.Printf("Trying to join (%v)", addrs)
-		_, err := s.cluster.Join(addrs, true)
+		_, err := c.cluster.Join(addrs, true)
 		if err != nil {
 			return err
 		}
@@ -115,47 +115,53 @@ func (s *SerfCluster) Join(addrs ...string) error {
 	return nil
 }
 
-func (s *SerfCluster) listenForUserEvents() {
+func (c *cluster) listenForUserEvents() {
 	for {
 		select {
-		case event := <-s.eventChannel:
+		case event := <-c.eventChannel:
 			// TODO make this a real thing
 			if event.EventType().String() == "user" {
-				fmt.Printf("%v\n", s.config.Tags)
+				fmt.Printf("%v\n", c.config.Tags)
 				message := strings.SplitN(event.String(), ": ", 2)
-				s.AddTag("last-user-event", message[1])
+				c.AddTag("last-user-event", message[1])
 				fmt.Printf("%v: %v\n", event.EventType(), event.String())
-				fmt.Printf("%v\n", s.config.Tags)
+				fmt.Printf("%v\n", c.config.Tags)
 			}
 		}
 	}
 }
 
-// SendEvent sends events to the gossip cluster
-func (s *SerfCluster) SendEvent(msg string) error {
-	return s.cluster.UserEvent(msg, []byte(msg), false)
+// BroadcastEvent sends events to the gossip cluster
+func (c *cluster) BroadcastEvent(msg string) error {
+	return c.cluster.UserEvent(msg, []byte(msg), false)
 }
 
 // AddTag creates or updates a tag on the cluster
-func (s *SerfCluster) AddTag(key, value string) error {
-	log.Print(s.config.Tags)
-	tags := s.config.Tags
+func (c *cluster) AddTag(key, value string) error {
+	log.Print(c.config.Tags)
+	tags := c.config.Tags
 	tags[key] = value
 
-	return s.cluster.SetTags(tags)
+	return c.cluster.SetTags(tags)
 }
 
 // RemoveTag takes a tag off the cluster. Safe to call on tags that don't exist
-func (s *SerfCluster) RemoveTag(key string) error {
-	s.Lock()
-	defer s.Unlock()
+func (c *cluster) RemoveTag(key string) error {
+	c.Lock()
+	defer c.Unlock()
 
 	tags := make(map[string]string)
-	for k, v := range s.config.Tags {
+	for k, v := range c.config.Tags {
 		if key != k {
 			tags[key] = v
 		}
 	}
 
-	return s.cluster.SetTags(tags)
+	return c.cluster.SetTags(tags)
+}
+
+// WatchNodeStatus starts a loop to transition the readiness state of the
+// cluster between lifecycle states.
+func (c *cluster) WatchNodeStatus() {
+
 }

@@ -5,8 +5,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/endzyme/slipway/pkg/cluster"
-	"github.com/endzyme/slipway/protobuf/slipway"
+	"github.com/endzyme/slipway/pkg/slipway"
+	pb "github.com/endzyme/slipway/protobuf/slipway"
 	"google.golang.org/grpc"
 )
 
@@ -51,7 +51,7 @@ import (
 // }
 
 // ServeGRPC returns the bind port and http server to listen
-func ServeGRPC(bindAddress string, slipwayCluster cluster.SlipwayCluster, gracefulStop chan os.Signal) error {
+func ServeGRPC(bindAddress string, slipwayCluster slipway.SlipwayCluster, gracefulStop chan os.Signal) error {
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)
@@ -65,9 +65,9 @@ func ServeGRPC(bindAddress string, slipwayCluster cluster.SlipwayCluster, gracef
 	kubernetesNodeHandler := KubernetesNodeHandler{}
 	clusterHandler := ClusterHandler{slipwayCluster: slipwayCluster}
 
-	slipway.RegisterKubernetesClusterServer(grpcServer, kubernetesClusterHandler)
-	slipway.RegisterKubernetesNodeServer(grpcServer, kubernetesNodeHandler)
-	slipway.RegisterClusterServer(grpcServer, clusterHandler)
+	pb.RegisterKubernetesClusterServer(grpcServer, kubernetesClusterHandler)
+	pb.RegisterKubernetesNodeServer(grpcServer, kubernetesNodeHandler)
+	pb.RegisterClusterServer(grpcServer, clusterHandler)
 
 	go func() {
 		sig := <-gracefulStop
