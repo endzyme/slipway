@@ -1,4 +1,4 @@
-package cluster
+package slipway
 
 import (
 	"fmt"
@@ -13,11 +13,11 @@ import (
 )
 
 // StartSlipwayCluster returns a build and ready to run gossip server
-func StartSlipwayCluster(eventChannel chan serf.Event, bindPort int, joinAddrs []string, secretKey []byte) (SlipwayCluster, error) {
+func StartSlipwayCluster(eventChannel chan serf.Event, config SlipwayConfig) (SlipwayCluster, error) {
 	server := SerfCluster{
 		eventChannel: eventChannel,
-		bindPort:     bindPort,
-		secretKey:    secretKey,
+		bindPort:     config.GossipBindPort,
+		secretKey:    config.GossipSecret,
 	}
 	err := server.Start()
 	if err != nil {
@@ -25,6 +25,8 @@ func StartSlipwayCluster(eventChannel chan serf.Event, bindPort int, joinAddrs [
 	}
 
 	go server.listenForUserEvents()
+
+	server.Join(config.GossipJoinAddrs...)
 
 	return &server, err
 }

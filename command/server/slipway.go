@@ -7,7 +7,7 @@ import (
 	"syscall"
 
 	"github.com/endzyme/slipway/pkg/api"
-	"github.com/endzyme/slipway/pkg/cluster"
+	"github.com/endzyme/slipway/pkg/slipway"
 	"github.com/hashicorp/serf/serf"
 )
 
@@ -17,7 +17,7 @@ func main() {
 	// read configurations
 	// var reloadChannel = make(chan os.Signal)
 	// signal.Notify(reloadChannel, syscall.SIGUSR1)
-	readConfigs()
+	config := slipway.ReadConfigs()
 
 	// Note the configs
 	log.Printf("Web Port: %v\n", apiBind)
@@ -30,22 +30,17 @@ func main() {
 	signal.Notify(gracefulStop, syscall.SIGINT)
 	signal.Notify(gracefulStop, syscall.SIGHUP)
 
-	// read configuration
 	// initialize cluster instance
-	// initialize http server
-	// sit and wait for signals to pass to downstream components
 	ch := make(chan serf.Event)
-	slipwayCluster, err := cluster.StartSlipwayCluster(ch, gossipBindPort, gossipJoinAddrs, []byte(gossipSecret))
+	slipwayCluster, err := slipway.StartSlipwayCluster(ch, config)
 	if err != nil {
 		println("FAILED BUILDING GOSSIP SERVER")
 		os.Exit(1)
 	}
 	defer slipwayCluster.Stop()
 
-	slipwayCluster.Join(gossipJoinAddrs...)
-
 	// run through your start up sequence and continually scan for state with which to  update tags in gossip
-	// cluster.ScanForState()
+	// slipway.WatchNodeStatus()
 
 	// start the api server and await commands
 	if err = api.ServeGRPC(apiBind, slipwayCluster, gracefulStop); err != nil {

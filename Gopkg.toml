@@ -29,9 +29,6 @@
   name = "github.com/braintree/manners"
   version = "0.4.0"
 
-[[constraint]]
-  branch = "master"
-  name = "github.com/endzyme/telephone"
 
 [[constraint]]
   name = "github.com/go-cmd/cmd"

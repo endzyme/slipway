@@ -1,4 +1,4 @@
-package cluster
+package slipway
 
 // SlipwayCluster Interface is for starting and stoping the server
 type SlipwayCluster interface {

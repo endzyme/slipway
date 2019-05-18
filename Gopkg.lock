@@ -10,26 +10,6 @@
   revision = "ec5e00d3c878b2a97bbe0884ef45ffd1b4f669f5"
 
 [[projects]]
-  digest = "1:57840705195634873ce9e1fa65d87dd1169352f793e6e3cfb81570b95350a79b"
-  name = "github.com/braintree/manners"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "0b5e6b2c2843f4c83c2a40f96980b09cf4af733c"
-  version = "0.4.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:ad82c1ed8607eec3668c8f261fb657ded5d20314c737314a9e8f0f65396d3483"
-  name = "github.com/endzyme/telephone"
-  packages = [
-    "pkg/api",
-    "pkg/gossip",
-    "protobuf/krbrnrtr",
-  ]
-  pruneopts = "UT"
-  revision = "7030549f53e4d6df7e11ad59d67d98af3fc414c8"
-
-[[projects]]
   digest = "1:c3957c9c9dc7beb125fdc93c920957d0305fe66dc48712a600f8790ce9354254"
   name = "github.com/go-cmd/cmd"
   packages = ["."]
@@ -108,6 +88,14 @@
   version = "v0.5.1"
 
 [[projects]]
+  digest = "1:16ae35b3a854c667baaf55ff5d455c486f7c2baf040a2727f2ef0e4b096b2a95"
+  name = "github.com/hashicorp/logutils"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a335183dfd075f638afcc820c90591ca3c97eba6"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:c839c9a399b78daeff75848565aff9ece9a389e50b77926065b6e504ed088bb5"
   name = "github.com/hashicorp/memberlist"
   packages = ["."]
@@ -116,9 +104,10 @@
   version = "v0.1.3"
 
 [[projects]]
-  digest = "1:56f92ad6e3432c53f4912c9d7c0b9a66cc19338f6a98f100d3b4557a32f1a33a"
+  digest = "1:845629a430cb58668de3475173b644fdd0cbe34eeb40ff550f1bb1aec8f11b47"
   name = "github.com/hashicorp/serf"
   packages = [
+    "client",
     "coordinate",
     "serf",
   ]
@@ -267,12 +256,9 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/braintree/manners",
-    "github.com/endzyme/telephone/pkg/api",
-    "github.com/endzyme/telephone/pkg/gossip",
-    "github.com/endzyme/telephone/protobuf/krbrnrtr",
     "github.com/go-cmd/cmd",
     "github.com/golang/protobuf/proto",
+    "github.com/hashicorp/serf/client",
     "github.com/hashicorp/serf/serf",
     "google.golang.org/grpc",
   ]
