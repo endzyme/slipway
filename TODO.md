@@ -14,3 +14,4 @@ Components so far:
 - kubeadm: responsible for handling kubeadm calls gracefully and being able to stream buffers out
 - node: All code responsible for detecting node state that affects lifecyclestate of clustermember
 - cmd server/client: responsible for starting the server with the right context and waiting for syscall signals
+- api: holds all call logic for grpc clients (web api logic)
