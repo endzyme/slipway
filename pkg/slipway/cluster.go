@@ -26,6 +26,9 @@ func StartSlipwayCluster(eventChannel chan serf.Event, config *Config) (Cluster,
 		return &server, err
 	}
 
+	// Start the node status watcher
+	go server.watchNodeLifecycle()
+
 	// Try to join any other cluster members
 	if err := server.startInitialJoin(server.initialJoinList); err != nil {
 		return &server, err
@@ -33,9 +36,6 @@ func StartSlipwayCluster(eventChannel chan serf.Event, config *Config) (Cluster,
 
 	// start the Event Listener
 	go server.listenForUserEvents()
-
-	// Start the node status watcher
-	go server.watchNodeStatus()
 
 	return &server, err
 }
@@ -151,7 +151,6 @@ func (c *cluster) BroadcastEvent(msg string) error {
 
 // AddTag creates or updates a tag on the cluster
 func (c *cluster) AddTag(key, value string) error {
-	log.Print(c.serfConfig.Tags)
 	tags := c.serfConfig.Tags
 	tags[key] = value
 
@@ -173,10 +172,27 @@ func (c *cluster) RemoveTag(key string) error {
 	return c.serf.SetTags(tags)
 }
 
-// watchNodeStatus starts a loop to transition the readiness state of the
+// watchNodeLifecycle starts a loop to transition the readiness state of the
 // cluster between lifecycle states.
-func (c *cluster) watchNodeStatus() {
+func (c *cluster) watchNodeLifecycle() {
+	// initially set the first state to waiting to bootstrap
+	c.AddTag("LifecycleState", NodeWaitingToBootstrap.String())
 
+	// watch a channel for state changes from node package to perform some cluster tag changes
+	// nodeStateChannel := node.WatchNodeState()
+	// for {
+	// 	select newState := <-nodeStateChannel {
+	// 	case NodeReady:
+	// 		// do stuff
+	// 	case NodeFailedBootstrap:
+	// 		// do stuff
+	// 	case NodeWaitingToBootstrap:
+	// 		// do stuff
+	// 	case NodeBootstrapping:
+	// 		// do stuff
+	// 	}
+	// }
+	//
 }
 
 // GetMembers returns members of gossip cluster

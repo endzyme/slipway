@@ -28,8 +28,6 @@ func main() {
 	}
 	defer slipwayCluster.Stop()
 
-	slipwayCluster.AddTag("LifecycleState", slipway.WaitingToBootstrap.String())
-
 	var listMembersUsr1 = make(chan os.Signal)
 	signal.Notify(listMembersUsr1, syscall.SIGUSR1)
 	go func() {
