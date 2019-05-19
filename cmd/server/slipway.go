@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,29 +20,33 @@ func main() {
 	// signal.Notify(reloadChannel, syscall.SIGUSR1)
 	config := slipway.ReadConfigs()
 
+	// initialize cluster instance
+	ch := make(chan serf.Event)
+	slipwayCluster, err := slipway.StartSlipwayCluster(ch, config)
+	if err != nil {
+		log.Fatalf("Error Building Gossip Cluster: (%v)", err)
+	}
+	defer slipwayCluster.Stop()
+
+	slipwayCluster.AddTag("LifecycleState", slipway.WaitingToBootstrap.String())
+
+	var listMembersUsr1 = make(chan os.Signal)
+	signal.Notify(listMembersUsr1, syscall.SIGUSR1)
+	go func() {
+		for {
+			select {
+			case <-listMembersUsr1:
+				members, err := slipwayCluster.GetMembers(nil, nil)
+				fmt.Printf("Members: (%v)\nError: (%v)\n", members, err)
+			}
+		}
+	}()
+
 	// Start up a signal channel for graceful termination
 	var gracefulStop = make(chan os.Signal)
 	signal.Notify(gracefulStop, syscall.SIGTERM)
 	signal.Notify(gracefulStop, syscall.SIGINT)
 	signal.Notify(gracefulStop, syscall.SIGHUP)
-
-	// initialize cluster instance
-	ch := make(chan serf.Event)
-	slipwayCluster, err := slipway.StartSlipwayCluster(ch, config)
-	if err != nil {
-		println("FAILED BUILDING GOSSIP SERVER")
-		os.Exit(1)
-	}
-	defer slipwayCluster.Stop()
-
-	members, err := slipwayCluster.GetMembers(nil, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("%v", members)
-
-	// run through your start up sequence and continually scan for state with which to  update tags in gossip
-	// slipway.WatchNodeStatus()
 
 	// start the api server and await commands
 	if err = api.ServeGRPC(config.APIBind, slipwayCluster, gracefulStop); err != nil {

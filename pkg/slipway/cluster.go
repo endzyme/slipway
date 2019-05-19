@@ -16,31 +16,39 @@ import (
 // StartSlipwayCluster returns a build and ready to run gossip server
 func StartSlipwayCluster(eventChannel chan serf.Event, config *Config) (Cluster, error) {
 	server := cluster{
-		eventChannel: eventChannel,
-		bindPort:     config.GossipBindPort,
-		secretKey:    config.GossipSecret,
+		eventChannel:    eventChannel,
+		bindPort:        config.GossipBindPort,
+		secretKey:       config.GossipSecret,
+		initialJoinList: config.GossipJoinAddrs,
 	}
 	err := server.Start()
 	if err != nil {
 		return &server, err
 	}
 
+	// Try to join any other cluster members
+	if err := server.startInitialJoin(server.initialJoinList); err != nil {
+		return &server, err
+	}
+
+	// start the Event Listener
 	go server.listenForUserEvents()
 
-	server.Join(config.GossipJoinAddrs...)
+	// Start the node status watcher
+	go server.watchNodeStatus()
 
 	return &server, err
 }
 
 //cluster is the interface implementor for a GossipServer
 type cluster struct {
-	bindPort     int
-	eventChannel chan serf.Event
-	secretKey    []byte
-	serfConfig   *serf.Config
-	serf         *serf.Serf
-	joinAddrs    []string
-	clientConfig *client.Config
+	bindPort        int
+	eventChannel    chan serf.Event
+	secretKey       []byte
+	serfConfig      *serf.Config
+	serf            *serf.Serf
+	initialJoinList []string
+	clientConfig    *client.Config
 	sync.Mutex
 }
 
@@ -76,6 +84,7 @@ func (c *cluster) Start() error {
 	config.EventCh = c.eventChannel
 	config.MemberlistConfig.BindPort = c.bindPort
 	config.NodeName = fmt.Sprintf("%v-%v", hostname, randomID)
+	config.ReconnectTimeout = 3 * time.Minute
 	config.TombstoneTimeout = 5 * time.Minute
 	config.Tags = map[string]string{
 		"Hostname": hostname,
@@ -101,22 +110,22 @@ func (c *cluster) Start() error {
 }
 
 // Join allows you to join cluster nodes with a list of addrs:ports
-func (c *cluster) Join(addrs ...string) error {
+func (c *cluster) Join(addrs ...string) (int, error) {
 	if len(addrs) > 0 {
 		c.Lock()
 		defer c.Unlock()
 
 		// attempt to join any specified joinAddrs
-		log.Printf("Trying to join (%v)", addrs)
-		_, err := c.serf.Join(addrs, true)
+		contactedNodes, err := c.serf.Join(addrs, false)
 		if err != nil {
-			return err
+			return contactedNodes, err
 		}
-	} else {
-		log.Print("No join addrs defined, waiting for peers...")
+		return contactedNodes, nil
 	}
 
-	return nil
+	log.Print("No join addrs defined, waiting for peers...")
+
+	return 0, nil
 }
 
 func (c *cluster) listenForUserEvents() {
@@ -164,9 +173,9 @@ func (c *cluster) RemoveTag(key string) error {
 	return c.serf.SetTags(tags)
 }
 
-// WatchNodeStatus starts a loop to transition the readiness state of the
+// watchNodeStatus starts a loop to transition the readiness state of the
 // cluster between lifecycle states.
-func (c *cluster) WatchNodeStatus() {
+func (c *cluster) watchNodeStatus() {
 
 }
 
@@ -225,7 +234,6 @@ MemberLoop:
 		clusterMember, err := translateSerfMemberToClusterMember(serfMember)
 		if err != nil {
 			log.Printf("Error translating serfMember to clusterMember struct: %v", err)
-			log.Printf("Skipping Member (%v) due to issue translating objects.", serfMember)
 		}
 
 		members = append(members, clusterMember)
@@ -280,4 +288,28 @@ func translateSerfStatusToGossipStatus(status serf.MemberStatus) GossipMemberSta
 	}
 
 	return memberStatus
+}
+
+// startInitialJoin will try to connect
+func (c *cluster) startInitialJoin(joinList []string) error {
+	retryInterval := time.Tick(time.Second * 1)
+	timeoutPeriod := time.Second * 30
+	timeout := time.After(timeoutPeriod)
+
+	log.Printf("Attempting to join cluster members (%v) for (%v)...", joinList, timeoutPeriod)
+	for {
+		select {
+		case <-retryInterval:
+			contactedNodes, err := c.Join(joinList...)
+			if err != nil {
+				if contactedNodes == 0 {
+					continue
+				}
+			}
+			return nil
+			// case <-time.After(timeoutPeriod):
+		case <-timeout:
+			return fmt.Errorf("Could not connect to cluster within timeout period (%v)", timeoutPeriod)
+		}
+	}
 }
