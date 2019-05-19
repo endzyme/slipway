@@ -51,7 +51,7 @@ import (
 // }
 
 // ServeGRPC returns the bind port and http server to listen
-func ServeGRPC(bindAddress string, slipwayCluster slipway.SlipwayCluster, gracefulStop chan os.Signal) error {
+func ServeGRPC(bindAddress string, slipwayCluster slipway.Cluster, gracefulStop chan os.Signal) error {
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)

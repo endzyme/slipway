@@ -34,6 +34,12 @@ func main() {
 	}
 	defer slipwayCluster.Stop()
 
+	members, err := slipwayCluster.GetMembers(nil, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%v", members)
+
 	// run through your start up sequence and continually scan for state with which to  update tags in gossip
 	// slipway.WatchNodeStatus()
 

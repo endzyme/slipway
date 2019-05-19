@@ -21,7 +21,8 @@ var (
 
 // TODO add secret key and role type for tags
 
-func ReadConfigs() *SlipwayConfig {
+// ReadConfigs reads the configs and outputs a config struct
+func ReadConfigs() *Config {
 	var err error
 	if len(os.Args) > 3 {
 		gossipJoinAddrs = []string{os.Args[3]}
@@ -38,7 +39,7 @@ func ReadConfigs() *SlipwayConfig {
 		}
 	}
 
-	config := SlipwayConfig{
+	config := Config{
 		NodeRole:        nodeRole,
 		APIBind:         apiBind,
 		GossipBindPort:  gossipBindPort,
@@ -49,8 +50,8 @@ func ReadConfigs() *SlipwayConfig {
 	return &config
 }
 
-// The slipway configuration
-type SlipwayConfig struct {
+// Config is the slipway configuration
+type Config struct {
 	NodeRole string
 
 	APIBind string

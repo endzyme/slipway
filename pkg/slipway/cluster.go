@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +14,7 @@ import (
 )
 
 // StartSlipwayCluster returns a build and ready to run gossip server
-func StartSlipwayCluster(eventChannel chan serf.Event, config *SlipwayConfig) (SlipwayCluster, error) {
+func StartSlipwayCluster(eventChannel chan serf.Event, config *Config) (Cluster, error) {
 	server := cluster{
 		eventChannel: eventChannel,
 		bindPort:     config.GossipBindPort,
@@ -36,8 +37,8 @@ type cluster struct {
 	bindPort     int
 	eventChannel chan serf.Event
 	secretKey    []byte
-	config       *serf.Config
-	cluster      *serf.Serf
+	serfConfig   *serf.Config
+	serf         *serf.Serf
 	joinAddrs    []string
 	clientConfig *client.Config
 	sync.Mutex
@@ -48,13 +49,13 @@ func (c *cluster) Stop() {
 	c.Lock()
 	defer c.Unlock()
 	// TODO Should this be checking for errors on these calls
-	c.cluster.Leave()
-	c.cluster.Shutdown()
+	c.serf.Leave()
+	c.serf.Shutdown()
 }
 
 //Start starts the cluster and sets the cluster and config options
 func (c *cluster) Start() error {
-	randomHostname := func(n int) string {
+	randomID := func(n int) string {
 		bytes := make([]byte, n)
 		for i := 0; i < n; i++ {
 			bytes[i] = byte(65 + rand.Intn(25)) //A=65 and Z = 65+25
@@ -63,18 +64,21 @@ func (c *cluster) Start() error {
 	}(6)
 
 	// Initialize the config
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatal("Can't get hostname")
+	}
+
 	config := serf.DefaultConfig()
 	config.Init()
 	config.CoalescePeriod = time.Millisecond * 100
 	config.MemberlistConfig.SecretKey = c.secretKey
 	config.EventCh = c.eventChannel
 	config.MemberlistConfig.BindPort = c.bindPort
-	config.NodeName = randomHostname
+	config.NodeName = fmt.Sprintf("%v-%v", hostname, randomID)
 	config.TombstoneTimeout = 5 * time.Minute
 	config.Tags = map[string]string{
-		"Hostname": randomHostname,
-		// TODO add more metadata here like cloud availzone and ip or real hostname
-		// TODO Add metadata like kubernetes-master or kubernetes-node
+		"Hostname": hostname,
 	}
 	config.ProtocolVersion = serf.ProtocolVersionMax
 
@@ -90,8 +94,8 @@ func (c *cluster) Start() error {
 	}
 
 	// Set the cluster and config settings for the struct
-	c.cluster = cluster
-	c.config = config
+	c.serf = cluster
+	c.serfConfig = config
 
 	return nil
 }
@@ -104,7 +108,7 @@ func (c *cluster) Join(addrs ...string) error {
 
 		// attempt to join any specified joinAddrs
 		log.Printf("Trying to join (%v)", addrs)
-		_, err := c.cluster.Join(addrs, true)
+		_, err := c.serf.Join(addrs, true)
 		if err != nil {
 			return err
 		}
@@ -121,11 +125,11 @@ func (c *cluster) listenForUserEvents() {
 		case event := <-c.eventChannel:
 			// TODO make this a real thing
 			if event.EventType().String() == "user" {
-				fmt.Printf("%v\n", c.config.Tags)
+				fmt.Printf("%v\n", c.serfConfig.Tags)
 				message := strings.SplitN(event.String(), ": ", 2)
 				c.AddTag("last-user-event", message[1])
 				fmt.Printf("%v: %v\n", event.EventType(), event.String())
-				fmt.Printf("%v\n", c.config.Tags)
+				fmt.Printf("%v\n", c.serfConfig.Tags)
 			}
 		}
 	}
@@ -133,16 +137,16 @@ func (c *cluster) listenForUserEvents() {
 
 // BroadcastEvent sends events to the gossip cluster
 func (c *cluster) BroadcastEvent(msg string) error {
-	return c.cluster.UserEvent(msg, []byte(msg), false)
+	return c.serf.UserEvent(msg, []byte(msg), false)
 }
 
 // AddTag creates or updates a tag on the cluster
 func (c *cluster) AddTag(key, value string) error {
-	log.Print(c.config.Tags)
-	tags := c.config.Tags
+	log.Print(c.serfConfig.Tags)
+	tags := c.serfConfig.Tags
 	tags[key] = value
 
-	return c.cluster.SetTags(tags)
+	return c.serf.SetTags(tags)
 }
 
 // RemoveTag takes a tag off the cluster. Safe to call on tags that don't exist
@@ -151,17 +155,129 @@ func (c *cluster) RemoveTag(key string) error {
 	defer c.Unlock()
 
 	tags := make(map[string]string)
-	for k, v := range c.config.Tags {
+	for k, v := range c.serfConfig.Tags {
 		if key != k {
 			tags[key] = v
 		}
 	}
 
-	return c.cluster.SetTags(tags)
+	return c.serf.SetTags(tags)
 }
 
 // WatchNodeStatus starts a loop to transition the readiness state of the
 // cluster between lifecycle states.
 func (c *cluster) WatchNodeStatus() {
 
+}
+
+// GetMembers returns members of gossip cluster
+// Requires all tags AND *any* of the listed statuses
+// TODO this needs testing for filter bugs
+func (c *cluster) GetMembers(filterTags map[string]string, membersStatusFilter []GossipMemberStatus) ([]ClusterMember, error) {
+	var members []ClusterMember
+
+	serfMembers := c.serf.Members()
+
+MemberLoop:
+	for _, serfMember := range serfMembers {
+		// filter out any members that aren't of a desired memberStatus
+		if len(membersStatusFilter) > 0 {
+			statusFound := false
+			for _, expectedStatus := range membersStatusFilter {
+				gossipStatus := translateSerfStatusToGossipStatus(serfMember.Status)
+
+				// set found to true and break from loop of status filters
+				if gossipStatus == expectedStatus {
+					statusFound = true
+					break
+				}
+			}
+
+			// skip this member if statuses were not found
+			if !statusFound {
+				continue MemberLoop
+			}
+		}
+
+		// filter the members with filterTags if any are defined
+		if len(filterTags) > 0 {
+			// if the serfMember is missing any of the tags then skip this
+			// member from the loop and break early if even one tag is missing
+			// or if the tags value doesn't match disired tag value.
+			for filterTagKey, filterTagValue := range filterTags {
+				var serfMemberTagValue string
+				var keyFound bool
+
+				// check to see if serfMember.Tags has the filterTagKey
+				if serfMemberTagValue, keyFound = serfMember.Tags[filterTagKey]; !keyFound {
+					// Member was missing on of the tag keys, skip from response
+					continue MemberLoop
+				}
+
+				// validate the serfMember.Tag Value == filterTagValue
+				if filterTagValue != serfMemberTagValue {
+					// serfMembers tag key value didn't match disired filter value, skip this member from response
+					continue MemberLoop
+				}
+			}
+		}
+
+		clusterMember, err := translateSerfMemberToClusterMember(serfMember)
+		if err != nil {
+			log.Printf("Error translating serfMember to clusterMember struct: %v", err)
+			log.Printf("Skipping Member (%v) due to issue translating objects.", serfMember)
+		}
+
+		members = append(members, clusterMember)
+	}
+
+	if len(members) == 0 {
+		return members, fmt.Errorf("No Members Found using Tags: (%v)", filterTags)
+	}
+
+	return members, nil
+}
+
+func (c *cluster) GetReadyMembers() ([]ClusterMember, error) {
+	return c.GetMembers(map[string]string{"NodeState": "Ready"}, nil)
+}
+
+func translateSerfMemberToClusterMember(serfMember serf.Member) (ClusterMember, error) {
+	m := ClusterMember{
+		ID:           serfMember.Name,
+		IPAddress:    serfMember.Addr,
+		Tags:         serfMember.Tags,
+		MemberStatus: translateSerfStatusToGossipStatus(serfMember.Status),
+	}
+
+	if hostname, found := serfMember.Tags["Hostname"]; found {
+		m.Hostname = hostname
+	} else {
+		return m, fmt.Errorf("Hostname Tag Not Found in Tags! Tags:(%v)", serfMember.Tags)
+	}
+
+	if _, found := serfMember.Tags["LifecycleState"]; found {
+		// if lifecycleState, found := serfMember.Tags["LifecycleState"]; found {
+		// m.LifecycleState = lifecycleState
+	} else {
+		return m, fmt.Errorf("LifecycleStatus Tag Not Found in Tags! Tags:(%v)", serfMember.Tags)
+	}
+
+	return m, nil
+}
+
+func translateSerfStatusToGossipStatus(status serf.MemberStatus) GossipMemberStatus {
+	var memberStatus GossipMemberStatus
+
+	// if we need a specific status
+	switch status {
+	case serf.StatusNone, serf.StatusFailed, serf.StatusLeaving, serf.StatusLeft:
+		memberStatus = GossipStatusUnavailable
+	case serf.StatusAlive:
+		memberStatus = GossipStatusAvailable
+	default:
+		memberStatus = GossipStatusUnknown
+	}
+
+	return memberStatus
 }

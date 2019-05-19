@@ -3,6 +3,21 @@ package slipway
 // NodeState items are the states a cluster can be in and is directly related to the unready/bootstrap states of kubernetes
 type NodeState int
 
+func (n NodeState) String() string {
+	switch n {
+	case WaitingToBootstrap:
+		return "waiting-to-bootstrap"
+	case Bootstrapping:
+		return "bootstrapping"
+	case Ready:
+		return "ready"
+	case Busy:
+		return "busy"
+	default:
+		panic("Didn't find expected constant for NodeStates")
+	}
+}
+
 const (
 	// WaitingToBootstrap state signifies node has started, and no one in the cluster is in the Ready State
 	// This is the startip initial state
