@@ -26,11 +26,6 @@
 
 
 [[constraint]]
-  name = "github.com/braintree/manners"
-  version = "0.4.0"
-
-
-[[constraint]]
   name = "github.com/go-cmd/cmd"
   version = "1.0.4"
 
