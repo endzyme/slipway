@@ -5,13 +5,13 @@ type NodeState int
 
 func (n NodeState) String() string {
 	switch n {
-	case WaitingToBootstrap:
+	case NodeWaitingToBootstrap:
 		return "waiting-to-bootstrap"
-	case Bootstrapping:
+	case NodeBootstrapping:
 		return "bootstrapping"
-	case Ready:
+	case NodeReady:
 		return "ready"
-	case Busy:
+	case NodeFailedBootstrap:
 		return "busy"
 	default:
 		panic("Didn't find expected constant for NodeStates")
@@ -19,18 +19,18 @@ func (n NodeState) String() string {
 }
 
 const (
-	// WaitingToBootstrap state signifies node has started, and no one in the cluster is in the Ready State
+	// NodeWaitingToBootstrap state signifies node has started, and no one in the cluster is in the Ready State
 	// This is the startip initial state
-	WaitingToBootstrap NodeState = iota
+	NodeWaitingToBootstrap NodeState = iota
 
-	// Bootstrapping state means the node is performing actions to bootstrap itself
-	Bootstrapping
+	// NodeBootstrapping state means the node is performing actions to bootstrap itself
+	NodeBootstrapping
 
-	// Ready state means the node is ready to help bootstrap other nodes
-	Ready
+	// NodeReady state means the node is ready to help bootstrap other nodes
+	NodeReady
 
-	// Busy state is for nodes that are performing an action that should not be interrupted
-	Busy
+	// NodeFailedBootstrap state is a holding state for Failed Bootstrap events
+	NodeFailedBootstrap
 )
 
 /*
@@ -51,5 +51,6 @@ const (
 	- continually watch the health of kube or sometihng
 	- wait for a user to transition the state manually
 
-  State:
+	State: FailedBootstrap is for when kubeadm fails for some reason and this state needs manual intervention
+	- wait for user action to either "force-re-bootstrap" or die or something
 */
